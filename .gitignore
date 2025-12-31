@@ -1,0 +1,18 @@
+# Esto creará el archivo .gitignore con el contenido correcto y codificación UTF8
+@"
+# .gitignore para .NET
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+appsettings.json
+appsettings.Development.json
+Thumbs.db
+"@ | Out-File -FilePath .gitignore -Encoding utf8
