@@ -1,5 +1,4 @@
-﻿
-using Almacen.Core.Entities;
+﻿using Almacen.Core.Entities;
 using System.Collections.Generic;
 using System.Threading.Tasks; // ¡OJO! Vamos a ser asíncronos desde el día 1.
 using System;

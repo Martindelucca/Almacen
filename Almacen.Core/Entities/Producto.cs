@@ -10,6 +10,7 @@ namespace Almacen.Core.Entities
         public string Nombre { get; set; } = string.Empty; // Evita nulos por defecto
         public decimal PrecioActual { get; set; }
         public bool Activo { get; set; }
+        public decimal StockActual { get; set; }
 
         // Propiedades de navegación (Opcional, útil para Dapper multimap)
         public string CategoriaNombre { get; set; }

@@ -1,8 +1,4 @@
-﻿// Almacen.Data/Repositories/ProductoRepository.cs
-using Almacen.Domain.Entities;
-using Almacen.Data.Repositories;
-
-using Dapper;
+﻿using Dapper;
 using System.Collections.Generic;
 using System.Data;
 using System.Threading.Tasks;
@@ -19,10 +15,17 @@ namespace Almacen.Data.Repositories
         {
             using var connection = CreateConnection();
             // Usamos tu vista v_StockActual o la tabla directa
-            var sql = @"SELECT p.IdProducto, p.Nombre, p.PrecioActual, c.Nombre as CategoriaNombre 
-                        FROM dbo.Producto p 
-                        INNER JOIN dbo.Categoria c ON p.IdCategoria = c.IdCategoria
-                        WHERE p.Activo = 1";
+            var sql = @"
+        SELECT 
+            p.IdProducto, 
+            p.Nombre, 
+            p.PrecioActual, 
+            c.Nombre as CategoriaNombre,
+            ISNULL(sp.StockActual, 0) as StockActual
+        FROM dbo.Producto p 
+        INNER JOIN dbo.Categoria c ON p.IdCategoria = c.IdCategoria
+        LEFT JOIN dbo.StockProducto sp ON p.IdProducto = sp.IdProducto
+        WHERE p.Activo = 1"; ;
 
             return await connection.QueryAsync<Producto>(sql);
         }

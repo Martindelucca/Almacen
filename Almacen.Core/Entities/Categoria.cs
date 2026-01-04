@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Almacen.Domain.Entities
+namespace Almacen.Core.Entities
 {
     public sealed record Categoria(int IdCategoria, string Nombre);
 }
