@@ -11,8 +11,8 @@ namespace Almacen.Core.Interfaces
         Task<IEnumerable<Producto>> GetAllAsync();
         Task<Producto?> GetByIdAsync(int id);
         Task<int> EntradaStockAsync(int idProducto, decimal cantidad, decimal? stockMinimo, string motivo);
-        // Aquí no ponemos "InsertarProducto" porque tu lógica de negocio dicta que
-        // los productos se gestionan vía stock o procesos administrativos.
-        // Pero para el ABM básico, podrías tener CreateAsync.
+        Task<int> CrearProductoAsync(Producto producto);
+        Task ModificarProductoAsync(Producto producto);
+        Task EliminarProductoAsync(int id); // Esto será el Soft Delete internamente
     }
 }

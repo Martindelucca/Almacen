@@ -1,5 +1,6 @@
 ﻿using Almacen.Business.Models;
 using Almacen.Core.Interfaces;
+using Almacen.Core.Dtos;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -93,6 +94,17 @@ namespace Almacen.Business.Services
         public void LimpiarCarrito()
         {
             _carrito.Clear();
+        }
+
+        // Historial de ventas
+        public async Task<IEnumerable<VentaResumenDto>> ObtenerHistorialVentas()
+        {
+            return await _ventaRepo.ObtenerVentasRecientesAsync();
+        }
+
+        public async Task<IEnumerable<DetalleVentaDto>> ObtenerDetalleVenta(int idVenta)
+        {
+            return await _ventaRepo.ObtenerDetalleDeVentaAsync(idVenta);
         }
     }
 }
