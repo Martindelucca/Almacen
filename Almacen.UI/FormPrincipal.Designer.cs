@@ -30,6 +30,7 @@
         {
             tabControl1 = new TabControl();
             Ventas = new TabPage();
+            btnAdminProductos = new Button();
             panel1 = new Panel();
             lbl_producto = new Label();
             txtIdProducto = new TextBox();
@@ -41,8 +42,11 @@
             btnConfirmar = new Button();
             dgvCarrito = new DataGridView();
             btnAgregar = new Button();
+            menuStrip1 = new MenuStrip();
             tabInventario = new TabPage();
+            txtBuscarInventario = new TextBox();
             btnRefrescar = new Button();
+            label1 = new Label();
             dgvInventario = new DataGridView();
             tabHistorial = new TabPage();
             btnRefrescarHistorial = new Button();
@@ -68,23 +72,37 @@
             tabControl1.Location = new Point(12, 12);
             tabControl1.Name = "tabControl1";
             tabControl1.SelectedIndex = 0;
-            tabControl1.Size = new Size(978, 501);
+            tabControl1.Size = new Size(852, 492);
             tabControl1.TabIndex = 12;
+            tabControl1.SelectedIndexChanged += FormPrincipal_Load;
             // 
             // Ventas
             // 
+            Ventas.Controls.Add(btnAdminProductos);
             Ventas.Controls.Add(panel1);
             Ventas.Controls.Add(lblTotal);
             Ventas.Controls.Add(btnConfirmar);
             Ventas.Controls.Add(dgvCarrito);
             Ventas.Controls.Add(btnAgregar);
+            Ventas.Controls.Add(menuStrip1);
             Ventas.Location = new Point(4, 29);
             Ventas.Name = "Ventas";
             Ventas.Padding = new Padding(3);
-            Ventas.Size = new Size(970, 468);
+            Ventas.Size = new Size(844, 459);
             Ventas.TabIndex = 0;
             Ventas.Text = "Ventas";
             Ventas.UseVisualStyleBackColor = true;
+            // 
+            // btnAdminProductos
+            // 
+            btnAdminProductos.Cursor = Cursors.Hand;
+            btnAdminProductos.Location = new Point(681, 426);
+            btnAdminProductos.Name = "btnAdminProductos";
+            btnAdminProductos.Size = new Size(157, 29);
+            btnAdminProductos.TabIndex = 21;
+            btnAdminProductos.Text = "⚙️ Admin Productos";
+            btnAdminProductos.UseVisualStyleBackColor = true;
+            btnAdminProductos.Click += btnAdminProductos_Click;
             // 
             // panel1
             // 
@@ -94,16 +112,15 @@
             panel1.Controls.Add(label2);
             panel1.Controls.Add(Cliente);
             panel1.Controls.Add(txtCantidad);
-            panel1.Dock = DockStyle.Top;
-            panel1.Location = new Point(3, 3);
+            panel1.Location = new Point(18, 3);
             panel1.Name = "panel1";
-            panel1.Size = new Size(964, 67);
+            panel1.Size = new Size(775, 67);
             panel1.TabIndex = 22;
             // 
             // lbl_producto
             // 
             lbl_producto.AutoSize = true;
-            lbl_producto.Location = new Point(68, 14);
+            lbl_producto.Location = new Point(62, 11);
             lbl_producto.Name = "lbl_producto";
             lbl_producto.Size = new Size(69, 20);
             lbl_producto.TabIndex = 12;
@@ -111,7 +128,7 @@
             // 
             // txtIdProducto
             // 
-            txtIdProducto.Location = new Point(31, 37);
+            txtIdProducto.Location = new Point(31, 34);
             txtIdProducto.Name = "txtIdProducto";
             txtIdProducto.Size = new Size(156, 27);
             txtIdProducto.TabIndex = 13;
@@ -119,7 +136,7 @@
             // 
             // txtCliente
             // 
-            txtCliente.Location = new Point(764, 9);
+            txtCliente.Location = new Point(575, 3);
             txtCliente.Name = "txtCliente";
             txtCliente.Size = new Size(125, 27);
             txtCliente.TabIndex = 20;
@@ -127,7 +144,7 @@
             // label2
             // 
             label2.AutoSize = true;
-            label2.Location = new Point(292, 14);
+            label2.Location = new Point(288, 6);
             label2.Name = "label2";
             label2.Size = new Size(69, 20);
             label2.TabIndex = 14;
@@ -136,7 +153,7 @@
             // Cliente
             // 
             Cliente.AutoSize = true;
-            Cliente.Location = new Point(703, 12);
+            Cliente.Location = new Point(514, 3);
             Cliente.Name = "Cliente";
             Cliente.Size = new Size(55, 20);
             Cliente.TabIndex = 19;
@@ -144,7 +161,7 @@
             // 
             // txtCantidad
             // 
-            txtCantidad.Location = new Point(254, 37);
+            txtCantidad.Location = new Point(254, 34);
             txtCantidad.Name = "txtCantidad";
             txtCantidad.Size = new Size(156, 27);
             txtCantidad.TabIndex = 15;
@@ -154,7 +171,7 @@
             lblTotal.AutoSize = true;
             lblTotal.Font = new Font("Segoe UI", 19.8000011F, FontStyle.Bold, GraphicsUnit.Point, 0);
             lblTotal.ForeColor = SystemColors.HotTrack;
-            lblTotal.Location = new Point(71, 412);
+            lblTotal.Location = new Point(49, 410);
             lblTotal.Name = "lblTotal";
             lblTotal.Size = new Size(206, 46);
             lblTotal.TabIndex = 21;
@@ -168,7 +185,7 @@
             btnConfirmar.FlatStyle = FlatStyle.Flat;
             btnConfirmar.Font = new Font("Segoe UI Semibold", 10.2F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnConfirmar.ForeColor = SystemColors.ButtonHighlight;
-            btnConfirmar.Location = new Point(622, 412);
+            btnConfirmar.Location = new Point(360, 417);
             btnConfirmar.Name = "btnConfirmar";
             btnConfirmar.Size = new Size(158, 35);
             btnConfirmar.TabIndex = 18;
@@ -178,13 +195,14 @@
             // 
             // dgvCarrito
             // 
+            dgvCarrito.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             dgvCarrito.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dgvCarrito.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvCarrito.Location = new Point(34, 119);
+            dgvCarrito.Location = new Point(6, 119);
             dgvCarrito.Name = "dgvCarrito";
             dgvCarrito.ReadOnly = true;
             dgvCarrito.RowHeadersWidth = 51;
-            dgvCarrito.Size = new Size(746, 278);
+            dgvCarrito.Size = new Size(795, 285);
             dgvCarrito.TabIndex = 17;
             dgvCarrito.CellContentClick += dgvCarrito_CellContentClick;
             // 
@@ -204,21 +222,41 @@
             btnAgregar.UseVisualStyleBackColor = false;
             btnAgregar.Click += btnAgregar_Click;
             // 
+            // menuStrip1
+            // 
+            menuStrip1.ImageScalingSize = new Size(20, 20);
+            menuStrip1.Location = new Point(3, 3);
+            menuStrip1.Name = "menuStrip1";
+            menuStrip1.Size = new Size(838, 24);
+            menuStrip1.TabIndex = 23;
+            menuStrip1.Text = "menuStrip1";
+            // 
             // tabInventario
             // 
+            tabInventario.Controls.Add(txtBuscarInventario);
             tabInventario.Controls.Add(btnRefrescar);
+            tabInventario.Controls.Add(label1);
             tabInventario.Controls.Add(dgvInventario);
             tabInventario.Location = new Point(4, 29);
             tabInventario.Name = "tabInventario";
             tabInventario.Padding = new Padding(3);
-            tabInventario.Size = new Size(970, 468);
+            tabInventario.Size = new Size(844, 459);
             tabInventario.TabIndex = 1;
             tabInventario.Text = "Inventario";
             tabInventario.UseVisualStyleBackColor = true;
             // 
+            // txtBuscarInventario
+            // 
+            txtBuscarInventario.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            txtBuscarInventario.Location = new Point(268, 26);
+            txtBuscarInventario.Name = "txtBuscarInventario";
+            txtBuscarInventario.Size = new Size(253, 27);
+            txtBuscarInventario.TabIndex = 3;
+            txtBuscarInventario.KeyUp += txtBuscarInventario_KeyUp;
+            // 
             // btnRefrescar
             // 
-            btnRefrescar.Location = new Point(822, 433);
+            btnRefrescar.Location = new Point(693, 15);
             btnRefrescar.Name = "btnRefrescar";
             btnRefrescar.Size = new Size(131, 29);
             btnRefrescar.TabIndex = 1;
@@ -226,15 +264,25 @@
             btnRefrescar.UseVisualStyleBackColor = true;
             btnRefrescar.Click += btnRefrescar_Click;
             // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Location = new Point(347, 3);
+            label1.Name = "label1";
+            label1.Size = new Size(55, 20);
+            label1.TabIndex = 2;
+            label1.Text = "Buscar:";
+            // 
             // dgvInventario
             // 
+            dgvInventario.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             dgvInventario.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvInventario.Dock = DockStyle.Left;
-            dgvInventario.Location = new Point(3, 3);
+            dgvInventario.Location = new Point(3, 59);
             dgvInventario.Name = "dgvInventario";
             dgvInventario.RowHeadersWidth = 51;
-            dgvInventario.Size = new Size(971, 462);
+            dgvInventario.Size = new Size(838, 397);
             dgvInventario.TabIndex = 0;
+            dgvInventario.CellFormatting += dgvInventario_CellFormatting;
             // 
             // tabHistorial
             // 
@@ -245,7 +293,7 @@
             tabHistorial.Location = new Point(4, 29);
             tabHistorial.Name = "tabHistorial";
             tabHistorial.Padding = new Padding(3);
-            tabHistorial.Size = new Size(970, 468);
+            tabHistorial.Size = new Size(844, 459);
             tabHistorial.TabIndex = 2;
             tabHistorial.Text = "Historial";
             tabHistorial.UseVisualStyleBackColor = true;
@@ -263,16 +311,16 @@
             // dgvDetalleVenta
             // 
             dgvDetalleVenta.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvDetalleVenta.Location = new Point(-4, 364);
+            dgvDetalleVenta.Location = new Point(6, 355);
             dgvDetalleVenta.Name = "dgvDetalleVenta";
             dgvDetalleVenta.RowHeadersWidth = 51;
-            dgvDetalleVenta.Size = new Size(974, 98);
+            dgvDetalleVenta.Size = new Size(792, 99);
             dgvDetalleVenta.TabIndex = 2;
             // 
             // lblDetalle
             // 
             lblDetalle.AutoSize = true;
-            lblDetalle.Location = new Point(367, 326);
+            lblDetalle.Location = new Point(295, 324);
             lblDetalle.Name = "lblDetalle";
             lblDetalle.Size = new Size(208, 20);
             lblDetalle.TabIndex = 1;
@@ -281,10 +329,10 @@
             // dgvVentas
             // 
             dgvVentas.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgvVentas.Location = new Point(3, 35);
+            dgvVentas.Location = new Point(6, 3);
             dgvVentas.Name = "dgvVentas";
             dgvVentas.RowHeadersWidth = 51;
-            dgvVentas.Size = new Size(964, 272);
+            dgvVentas.Size = new Size(792, 318);
             dgvVentas.TabIndex = 0;
             dgvVentas.SelectionChanged += dgvVentas_SelectionChanged;
             // 
@@ -292,11 +340,14 @@
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1002, 525);
+            ClientSize = new Size(876, 533);
             Controls.Add(tabControl1);
+            KeyPreview = true;
+            MainMenuStrip = menuStrip1;
             Name = "FormPrincipal";
             Text = "Registro de ventas";
             Load += FormPrincipal_Load;
+            KeyPress += txtIdProducto_KeyPress;
             tabControl1.ResumeLayout(false);
             Ventas.ResumeLayout(false);
             Ventas.PerformLayout();
@@ -304,6 +355,7 @@
             panel1.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvCarrito).EndInit();
             tabInventario.ResumeLayout(false);
+            tabInventario.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvInventario).EndInit();
             tabHistorial.ResumeLayout(false);
             tabHistorial.PerformLayout();
@@ -334,5 +386,9 @@
         private DataGridView dgvDetalleVenta;
         private Label lblDetalle;
         private Panel panel1;
+        private MenuStrip menuStrip1;
+        private Button btnAdminProductos;
+        private TextBox txtBuscarInventario;
+        private Label label1;
     }
 }

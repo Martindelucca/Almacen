@@ -6,5 +6,9 @@ using System.Threading.Tasks;
 
 namespace Almacen.Core.Entities
 {
-    public sealed record Categoria(int IdCategoria, string Nombre);
+    public class Categoria
+    {
+        public int IdCategoria { get; set; }
+        public string Nombre { get; set; }
+    }
 }

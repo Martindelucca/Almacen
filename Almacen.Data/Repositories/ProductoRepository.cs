@@ -56,5 +56,69 @@ namespace Almacen.Data.Repositories
 
             return idProducto;
         }
+
+        public async  Task<int> CrearProductoAsync(Producto producto)
+        {
+            using var connection = CreateConnection();
+            var parameters = new DynamicParameters();
+            parameters.Add("@IdCategoria", producto.IdCategoria);
+            parameters.Add("@Nombre", producto.Nombre);
+            parameters.Add("@PrecioActual", producto.PrecioActual);
+            parameters.Add("@IdProductoGenerado", dbType: DbType.Int32, direction: ParameterDirection.Output);
+
+            await connection.ExecuteAsync("dbo.sp_Producto_Crear", parameters, commandType: CommandType.StoredProcedure);
+
+            return parameters.Get<int>("@IdProductoGenerado");
+        }
+
+        public async Task ModificarProductoAsync(Producto producto)
+        {
+            using var connection = CreateConnection();
+            // Reutilizamos el objeto producto completo
+            await connection.ExecuteAsync("dbo.sp_Producto_Modificar", new
+            {
+                producto.IdProducto,
+                producto.IdCategoria,
+                producto.Nombre,
+                producto.PrecioActual,
+                producto.Activo
+            }, commandType: CommandType.StoredProcedure);
+        }
+
+        public async Task EliminarProductoAsync(int id)
+        {
+            using var connection = CreateConnection();
+            // TRUCO SENIOR: No hacemos DELETE. Hacemos UPDATE Activo = 0
+            // Pero ojo: necesitamos saber el resto de datos para no romperlos, 
+            // o hacemos un query específico solo para desactivar.
+            // Para simplificar, haré una query directa aquí (aunque lo ideal es un SP específico).
+
+            var sql = "UPDATE dbo.Producto SET Activo = 0 WHERE IdProducto = @Id";
+            await connection.ExecuteAsync(sql, new { Id = id });
+        }
+
+        public async Task<IEnumerable<Categoria>> ObtenerCategoriasAsync()
+        {
+            using var connection = CreateConnection();
+
+            // NO uses 'SELECT *'. A veces trae columnas en orden raro.
+            // Usa los nombres explícitos para asegurar que Dapper los encuentre.
+            var sql = "SELECT IdCategoria, Nombre FROM dbo.Categoria";
+
+            return await connection.QueryAsync<Categoria>(sql);
+        }
+
+        public async Task AgregarStockAsync(int idProducto, decimal cantidad, string motivo)
+        {
+            using var connection = CreateConnection();
+            // Llamamos a tu SP existente
+            await connection.ExecuteAsync("dbo.sp_EntradaStock", new
+            {
+                IdProducto = idProducto,
+                Cantidad = cantidad,
+                StockMinimo = 0, // Opcional si el SP lo pide
+                Motivo = motivo
+            }, commandType: CommandType.StoredProcedure);
+        }
     }
 }

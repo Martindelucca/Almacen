@@ -1,6 +1,7 @@
 ﻿using Almacen.Business.Models;
-using Almacen.Core.Interfaces;
 using Almacen.Core.Dtos;
+using Almacen.Core.Entities;
+using Almacen.Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,6 +22,10 @@ namespace Almacen.Business.Services
         {
             _productoRepo = productoRepo;
             _ventaRepo = ventaRepo;
+        }
+        public async Task<IEnumerable<Producto>> ObtenerTodosLosProductos()
+        {
+            return await _productoRepo.GetAllAsync();
         }
 
         // Método para obtener la lista (solo lectura para la UI)

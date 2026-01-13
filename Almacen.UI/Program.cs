@@ -72,10 +72,12 @@ namespace Almacen.UI
             // C. Registramos los Servicios de Negocio (Capa Lógica)
             // VentaService se creará automáticamente recibiendo los repositorios que necesita.
             services.AddScoped<VentaService>();
+            services.AddScoped<ProductoService>();
 
             // D. Registramos los Formularios (Capa Visual)
             // Es vital registrar el Form para poder inyectarle cosas en su constructor.
             services.AddTransient<FormPrincipal>();
+            services.AddTransient<FormProductos>();
         }
     }
 }

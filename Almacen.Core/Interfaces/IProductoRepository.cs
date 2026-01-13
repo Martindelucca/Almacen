@@ -14,5 +14,7 @@ namespace Almacen.Core.Interfaces
         Task<int> CrearProductoAsync(Producto producto);
         Task ModificarProductoAsync(Producto producto);
         Task EliminarProductoAsync(int id); // Esto será el Soft Delete internamente
+        Task<IEnumerable<Categoria>> ObtenerCategoriasAsync();
+        Task AgregarStockAsync(int idProducto, decimal cantidad, string motivo);
     }
 }

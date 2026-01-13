@@ -6,6 +6,14 @@ using System.Threading.Tasks;
 
 namespace Almacen.Core.Entities
 {
-    public sealed class VentaItem(int IdVenta, int NroItem, int IdProducto, int Cantidad, decimal PrecioUnitario);
-   
+   // public sealed class VentaItem(int IdVenta, int NroItem, int IdProducto, int Cantidad, decimal PrecioUnitario);
+   public class VentaItem
+    {
+        public int IdVenta { get; set; }
+        public int NroItem { get; set; }
+        public int IdProducto { get; set; }
+        public int Cantidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+    }
+
 }
