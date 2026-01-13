@@ -1,11 +1,12 @@
-﻿using System;
+﻿using Almacen.Core.Dtos;
+using Almacen.Core.Interfaces;
+using Dapper;
+using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Almacen.Core.Dtos;
-using Almacen.Core.Interfaces;
-using Dapper;
 
 namespace Almacen.Data.Repositories
 {
@@ -36,7 +37,8 @@ namespace Almacen.Data.Repositories
             v.FechaHora,
             v.Total,
             ISNULL(c.Nombre, 'Consumidor Final') as ClienteNombre,
-            (SELECT COUNT(*) FROM dbo.DetalleVenta dv WHERE dv.IdVenta = v.IdVenta) as CantidadItems
+            (SELECT COUNT(*) FROM dbo.DetalleVenta dv WHERE dv.IdVenta = v.IdVenta) as CantidadItems,
+            v.Estado
         FROM dbo.Venta v  
         LEFT JOIN dbo.Cliente c ON v.IdCliente = c.IdCliente
         ORDER BY v.FechaHora DESC"; // <--- Asegúrate de que esta línea esté presente
@@ -59,6 +61,13 @@ namespace Almacen.Data.Repositories
             return idVenta;
 
         }
-
+        public async Task AnularVentaAsync(int idVenta,string motivo)
+        {
+            using var connection = CreateConnection();
+            await connection.ExecuteAsync(
+          "dbo.sp_AnularVenta",
+          new { IdVenta = idVenta, Motivo = motivo },
+          commandType: CommandType.StoredProcedure);
+        }
     }
 }

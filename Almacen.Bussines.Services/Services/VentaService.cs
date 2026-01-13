@@ -111,5 +111,10 @@ namespace Almacen.Business.Services
         {
             return await _ventaRepo.ObtenerDetalleDeVentaAsync(idVenta);
         }
+        public async Task AnularVenta(int idVenta, string motivo)
+        {
+            // Aquí podrías validar que el motivo no esté vacío si quieres
+            await _ventaRepo.AnularVentaAsync(idVenta, motivo);
+        }
     }
 }

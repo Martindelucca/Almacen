@@ -13,5 +13,7 @@ namespace Almacen.Core.Interfaces
         Task<int> RegistrarVentaAsync(int? idCliente, string itemsJson);
         Task<IEnumerable<VentaResumenDto>> ObtenerVentasRecientesAsync();
         Task<IEnumerable<DetalleVentaDto>> ObtenerDetalleDeVentaAsync(int idVenta);
+
+        Task AnularVentaAsync(int idVenta, string motivo);
     }
 }

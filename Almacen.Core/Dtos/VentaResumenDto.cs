@@ -13,5 +13,6 @@ namespace Almacen.Core.Dtos
         public string ClienteNombre { get; set; }
         public decimal Total { get; set; }
         public int cantidadItems { get; set; }
+        public string Estado { get; set; }
     }
 }
