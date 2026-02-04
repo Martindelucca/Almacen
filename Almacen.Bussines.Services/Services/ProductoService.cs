@@ -23,7 +23,7 @@ namespace Almacen.Business.Services
 
         public async Task<Producto> ObtenerPorId(int id)
         {
-            return await _productoRepo.GetByIdAsync(id);
+            return await _productoRepo.ObtenerPorIdAsync(id);
         }
 
         public async Task <int> CrearProducto(Producto producto)

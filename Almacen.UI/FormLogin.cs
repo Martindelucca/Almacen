@@ -1,13 +1,6 @@
 ﻿using Almacen.Business.Services;
 using Almacen.Core.Entities;
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace Almacen.UI
@@ -16,15 +9,16 @@ namespace Almacen.UI
     {
         private readonly LoginService _loginService;
 
-        // Esta es la "Cajita Feliz" donde guardaremos al usuario si logra entrar.
-        // Program.cs leerá esto después.
+        // ✅ CRÍTICO: Control de intentos fallidos
+        private int _intentosFallidos = 0;
+        private const int MAX_INTENTOS = 5;
+
         public Usuario UsuarioLogueado { get; private set; }
 
-        // Inyección de Dependencias en el Constructor
         public FormLogin(LoginService loginService)
         {
             InitializeComponent();
-            _loginService = loginService;
+            _loginService = loginService ?? throw new ArgumentNullException(nameof(loginService));
         }
 
         private async void btnIngresar_Click(object sender, EventArgs e)
@@ -34,40 +28,74 @@ namespace Almacen.UI
                 // 1. Validaciones básicas visuales
                 if (string.IsNullOrWhiteSpace(txtUsuario.Text) || string.IsNullOrWhiteSpace(txtClave.Text))
                 {
-                    MessageBox.Show("Por favor complete todos los campos.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Por favor complete todos los campos.",
+                        "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
                 // Deshabilitar botón para evitar doble clic
                 btnIngresar.Enabled = false;
                 btnIngresar.Text = "Verificando...";
+                this.Cursor = Cursors.WaitCursor;
 
                 // 2. Llamamos al servicio (La lógica pesada)
-                var usuario = await _loginService.ValidarUsuarioAsync(txtUsuario.Text.Trim(), txtClave.Text.Trim());
+                var usuario = await _loginService.ValidarUsuarioAsync(
+                    txtUsuario.Text.Trim(),
+                    txtClave.Text.Trim());
 
                 if (usuario != null)
                 {
-                    // ¡ÉXITO! 🎉
+                    // ✅ ÉXITO - Resetear intentos
+                    _intentosFallidos = 0;
                     UsuarioLogueado = usuario;
-                    this.DialogResult = DialogResult.OK; // Le dice a Program.cs que todo salió bien
+                    this.DialogResult = DialogResult.OK;
                     this.Close();
                 }
                 else
                 {
-                    // FALLO ❌
-                    MessageBox.Show("Usuario o contraseña incorrectos.", "Error de Acceso", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    // ❌ FALLO - Incrementar contador
+                    _intentosFallidos++;
+
+                    // ✅ CRÍTICO: Bloquear después de X intentos
+                    if (_intentosFallidos >= MAX_INTENTOS)
+                    {
+                        MessageBox.Show(
+                            "Se han excedido los intentos permitidos.\n\n" +
+                            "Por seguridad, la aplicación se cerrará.",
+                            "Acceso Bloqueado",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Stop);
+
+                        Application.Exit();
+                        return;
+                    }
+
+                    // Mostrar intentos restantes
+                    int intentosRestantes = MAX_INTENTOS - _intentosFallidos;
+                    MessageBox.Show(
+                        $"Usuario o contraseña incorrectos.\n\n" +
+                        $"Intentos restantes: {intentosRestantes}",
+                        "Error de Acceso",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+
                     txtClave.Clear();
                     txtClave.Focus();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al intentar loguearse: " + ex.Message);
+                MessageBox.Show(
+                    $"Error al intentar conectarse:\n\n{ex.Message}",
+                    "Error de Conexión",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
             finally
             {
                 btnIngresar.Enabled = true;
                 btnIngresar.Text = "Ingresar";
+                this.Cursor = Cursors.Default;
             }
         }
 
@@ -75,6 +103,14 @@ namespace Almacen.UI
         {
             this.DialogResult = DialogResult.Cancel;
             this.Close();
+        }
+
+        // ✅ Opcional: Resetear contador si cierra y vuelve a abrir
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            _intentosFallidos = 0;
+            txtUsuario.Focus();
         }
     }
 }

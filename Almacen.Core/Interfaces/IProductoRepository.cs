@@ -9,7 +9,7 @@ namespace Almacen.Core.Interfaces
     public interface IProductoRepository
     {
         Task<IEnumerable<Producto>> GetAllAsync();
-        Task<Producto?> GetByIdAsync(int id);
+        Task<Producto?> ObtenerPorIdAsync(int id);
         Task<int> EntradaStockAsync(int idProducto, decimal cantidad, decimal? stockMinimo, string motivo);
         Task<int> CrearProductoAsync(Producto producto);
         Task ModificarProductoAsync(Producto producto);

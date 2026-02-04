@@ -5,8 +5,10 @@ using Almacen.Core.Entities;
 using Almacen.Core.Interfaces; // Necesario si usas el repo de productos para búsquedas extra
 using Almacen.Data.Repositories;
 using Almacen.UI.Services;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using static Almacen.UI.Services.TicketService;
 
@@ -21,29 +23,34 @@ namespace Almacen.UI
         private List<Producto> _products = new List<Producto>(); // Bolsillo para el inventario
         private readonly TicketService _ticketService = new TicketService();
         private Usuario _usuarioActual;
+        private readonly CajaService _cajaService;
+        private readonly IServiceProvider _serviceProvider;
 
         // BindingSource actúa como intermediario entre la Lista y el DataGridView
         private readonly BindingSource _bindingSource = new BindingSource();
 
         // CONSTRUCTOR: Aquí recibimos el servicio gracias al Program.cs
-        public FormPrincipal(VentaService ventaService, IProductoRepository productoRepo, ProductoService productoService)
+        public FormPrincipal(VentaService ventaService, IProductoRepository productoRepo, ProductoService productoService, CajaService cajaService, IServiceProvider serviceProvider)
         {
             InitializeComponent();
             _ventaService = ventaService;
             _productoRepository = productoRepo;
             _productoService = productoService;
+            _cajaService = cajaService;
+            _serviceProvider = serviceProvider;
         }
 
-        private void FormPrincipal_Load(object sender, EventArgs e)
+        private async void FormPrincipal_Load(object sender, EventArgs e)
         {
             // Configuramos la grilla al iniciar
             ConfigurarGrid();
-            CargarInventario();
+            await CargarInventario();
             EstilizarGridModerno();
             ConfigurarBuscador();
-            CargarHistorial();
+            await CargarHistorial();
             ConfigurarGridInventario();
             EstilizarGridVentas();
+            await VerificarEstadoCaja();
 
             // Esto hace que una fila sea blanca y la otra gris suave
             dgvVentas.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(238, 239, 249);
@@ -55,21 +62,44 @@ namespace Almacen.UI
         // Variable a nivel de clase para buscar rápido el ID cuando eligen un nombre
         // Esto crea una lista vacía. Si el buscador falla, al menos no explota.
         private List<Producto> _listaProductosBuscador = new List<Producto>();
-        public void AsignarUsuario(Usuario usuario)
+
+        private async Task VerificarEstadoCaja()
         {
-            _usuarioActual = usuario;
-
-            // OPCIONAL: Cambiar el título de la ventana
-            this.Text = $"Registro de Ventas - Atendido por: {_usuarioActual.NombreCompleto} ({_usuarioActual.Rol})";
-
-            // OPCIONAL: Bloquear botones si es Cajero
-            if (_usuarioActual.Rol == "Cajero")
+            try
             {
-                // Ocultar pestaña inventario, por ejemplo
-                // tabControlPrincipal.TabPages.Remove(tabInventario);
-                // btnAdminProductos.Enabled = false;
+                // 1. Preguntamos a la BD si hay sesión
+                var sesion = await _cajaService.VerificarCajaAbierta(_usuarioActual.IdUsuario);
+
+                if (sesion == null)
+                {
+                    // 1. El contenedor crea el form inyectando SOLO el servicio
+                    using (var formApertura = _serviceProvider.GetRequiredService<FormAperturaCaja>())
+                    {
+                        // 2. NOSOTROS le pasamos el dato dinámico (el ID del usuario)
+                        formApertura.AsignarUsuario(_usuarioActual.IdUsuario); // <--- NUEVA LÍNEA
+
+                        var resultado = formApertura.ShowDialog();
+
+                        if (resultado != DialogResult.OK)
+                        {
+                            MessageBox.Show("No se puede operar sin caja abierta.");
+                            Application.Exit();
+                        }
+                    }
+                }
+                else
+                {
+                    // Ya estaba abierta de antes
+                    // lblEstadoCaja.Text = "Caja: ABIERTA (Recuperada)";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error verificando caja: {ex.Message}");
             }
         }
+
+
         private async void ConfigurarBuscador()
         {
             try
@@ -212,183 +242,128 @@ namespace Almacen.UI
             try
             {
                 string textoInput = txtIdProducto.Text.Trim();
+                if (string.IsNullOrEmpty(textoInput)) return;
 
-                // CAMBIO 1: En vez de guardar solo el ID, guardamos el OBJETO completo
-                // para tener acceso a su propiedad .StockActual
                 Producto productoSeleccionado = null;
 
-                // PASO 1: Determinar el Producto (Sea por número o por nombre)
+                // ---------------------------------------------------------
+                // PASO 1: BÚSQUEDA INTELIGENTE (Cascada) 🧠
+                // ---------------------------------------------------------
 
-                // ¿Es un número directo? (Ej: Escáner de barras o escribió "1")
+                // A. Intentamos buscar por ID numérico exacto
                 if (int.TryParse(textoInput, out int idNumerico))
                 {
-                    // Buscamos el objeto completo en tu lista en memoria
                     if (_listaProductosBuscador != null)
                     {
                         productoSeleccionado = _listaProductosBuscador
                             .FirstOrDefault(p => p.IdProducto == idNumerico);
                     }
                 }
-                // ¿Es texto? (Ej: Seleccionó "Coca Cola" del buscador)
-                else
+
+                // B. Si NO encontró por ID (o no era un número), buscamos por Nombre
+                //    (Usamos 'Contains' para que si escribes "Coca" encuentre "Coca Cola")
+                if (productoSeleccionado == null && _listaProductosBuscador != null)
                 {
-                    if (_listaProductosBuscador != null)
-                    {
-                        productoSeleccionado = _listaProductosBuscador
-                            .FirstOrDefault(p => p.Nombre.Equals(textoInput, StringComparison.OrdinalIgnoreCase));
-                                                        }
+                    productoSeleccionado = _listaProductosBuscador.FirstOrDefault(p =>
+                        p.Nombre.Contains(textoInput, StringComparison.OrdinalIgnoreCase));
                 }
 
+                // ---------------------------------------------------------
                 // PASO 2: Validar si encontramos algo
+                // ---------------------------------------------------------
                 if (productoSeleccionado == null)
                 {
-                    MessageBox.Show("No se encontró un producto válido con ese código o nombre.");
+                    MessageBox.Show("No se encontró un producto válido con ese código o nombre.",
+                        "Producto No Encontrado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                    // Truco de UX: Seleccionar el texto para que el usuario pueda borrar rápido
+                    txtIdProducto.SelectAll();
+                    txtIdProducto.Focus();
                     return;
                 }
 
-                // PASO 3: Validar Cantidad (Input del usuario)
-                if (!decimal.TryParse(txtCantidad.Text, out decimal cantidadSolicitada))
+                // ---------------------------------------------------------
+                // PASO 3: Validar Cantidad
+                // ---------------------------------------------------------
+                if (!decimal.TryParse(txtCantidad.Text, out decimal cantidadSolicitada) || cantidadSolicitada <= 0)
                 {
-                    MessageBox.Show("La cantidad debe ser un número válido.");
+                    MessageBox.Show("La cantidad debe ser un número mayor a 0.",
+                        "Cantidad Inválida", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                // -------------------------------------------------------------
-                // /// NUEVO: PASO CRÍTICO - EL SEMÁFORO DE STOCK /// 
-                // -------------------------------------------------------------
-
-                // A. Calculamos cuánto de este producto YA tienes en la grilla
-                decimal cantidadEnCarrito = 0;
-
-                foreach (DataGridViewRow row in dgvCarrito.Rows)
-                {
-                    if (row.IsNewRow) continue;
-
-                    // 1. OBTENCIÓN SEGURA DEL ID (Intentamos parsear sin que explote)
-                    // Usamos el índice 1, pero protegemos la conversión.
-                    if (row.Cells[1].Value != null)
-                    {
-                        string valorCelda = row.Cells[1].Value.ToString();
-
-                        if (int.TryParse(valorCelda, out int idEnFila))
-                        {
-                            // Solo si es un número válido, comparamos
-                            if (idEnFila == productoSeleccionado.IdProducto)
-                            {
-                                // 2. OBTENCIÓN SEGURA DE LA CANTIDAD
-                                // Si row.Cells["Cantidad"] falla, prueba con el índice visual (ej: 4 o 5)
-                                if (row.Cells["Cantidad"].Value != null)
-                                {
-                                    cantidadEnCarrito += Convert.ToDecimal(row.Cells["Cantidad"].Value);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // B. La cuenta de la verdad
-                decimal totalRequerido = cantidadEnCarrito + cantidadSolicitada;
-
-                // C. El bloqueo
-                if (totalRequerido > productoSeleccionado.StockActual)
-                {
-                    MessageBox.Show($"¡Stock insuficiente!\n\n" +
-                                    $"Stock en Estantería: {productoSeleccionado.StockActual}\n" +
-                                    $"Ya en Carrito: {cantidadEnCarrito}\n" +
-                                    $"Intentas agregar: {cantidadSolicitada}\n\n" +
-                                    $"Total necesario: {totalRequerido}",
-                                    "Advertencia de Stock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return; // ¡Abortar misión! No llamamos al servicio.
-                }
-                // -------------------------------------------------------------
-                // FIN DE LO NUEVO
-                // -------------------------------------------------------------
-
-                // PASO 4: Llamar al Servicio (Negocio)
-                // Ahora usamos el ID del objeto que ya encontramos
+                // ---------------------------------------------------------
+                // PASO 4: Agregar al Carrito (El servicio valida el Stock)
+                // ---------------------------------------------------------
+                // NOTA: Para que esto no de error de stock, recuerda haber hecho el cambio
+                // del LEFT JOIN en ProductoRepository.cs
                 await _ventaService.AgregarProductoAlCarrito(productoSeleccionado.IdProducto, cantidadSolicitada);
 
-                // PASO 5: Refrescar UI y Limpiar
+                // Si llegamos aquí, todo salió bien
                 ActualizarCarritoUI();
 
+                // Limpieza para la siguiente venta
                 txtIdProducto.Clear();
                 txtCantidad.Text = "1";
                 txtIdProducto.Focus();
             }
+            catch (InvalidOperationException ex)
+            {
+                // Captura el error de stock del servicio
+                MessageBox.Show(ex.Message, "Stock Insuficiente", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show($"Error al agregar producto:\n\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private async void btnConfirmar_Click(object sender, EventArgs e)
         {
-            // ESTRATEGIA SEGURA: Leer el total del Label que ya se ve en pantalla
-            // Quitamos el signo $ y espacios para obtener solo el número
             string textoTotal = lblTotal.Text.Replace("Total:", "").Replace("$", "").Trim();
 
-            decimal totalAEnviar = 0;
-
-            if (!decimal.TryParse(textoTotal, out totalAEnviar) || totalAEnviar == 0)
+            if (!decimal.TryParse(textoTotal, out decimal totalAEnviar) || totalAEnviar == 0)
             {
-                MessageBox.Show("El total es 0 o no se pudo leer. Agrega productos primero.");
+                MessageBox.Show("El total es 0 o no se pudo leer. Agrega productos primero.",
+                    "Carrito Vacío", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            // 2. ABRIR EL FORMULARIO DE COBRO (MODAL)
-            // Pasamos el total en el constructor
             using (var formCobro = new FormCobro(totalAEnviar))
             {
-                var resultado = formCobro.ShowDialog(); // Espera aquí hasta que se cierre
+                var resultado = formCobro.ShowDialog();
 
-                // 3. VERIFICAR SI PAGÓ
                 if (formCobro.VentaConfirmada)
                 {
                     try
                     {
-                        // -------------------------------------------------------
-                        // PASO 1: CAPTURAR DATOS (ANTES DE QUE DESAPAREZCAN) 📸
-                        // -------------------------------------------------------
-                        // Armamos la lista del ticket AHORA, mientras la grilla todavía tiene datos.
-
+                        // ✅ CRÍTICO: USAR NOMBRES DE COLUMNAS, NO ÍNDICES
                         var listaParaTicket = new List<TicketDetalle>();
 
                         foreach (DataGridViewRow row in dgvCarrito.Rows)
                         {
-                            if (row.IsNewRow) continue;
+                            // 1. Obtenemos el objeto real que está detrás de la fila
+                            var item = row.DataBoundItem as DetalleVentaModel;
 
-                            // Usamos índices (0,1,2...) para evitar errores de nombres.
-                            // Según tu foto: 2=Producto, 3=Precio, 4=Cantidad, 5=Subtotal
-                            if (row.Cells[2].Value == null) continue;
-
-                            // Limpieza de seguridad para precios (quita el signo $ si existe)
-                            string precioTxt = row.Cells[3].Value.ToString().Replace("$", "").Trim();
-                            string subtotalTxt = row.Cells[5].Value.ToString().Replace("$", "").Trim();
-
-                            decimal.TryParse(precioTxt, out decimal precioFinal);
-                            decimal.TryParse(subtotalTxt, out decimal subtotalFinal);
-
-                            listaParaTicket.Add(new TicketDetalle
+                            if (item != null)
                             {
-                                Cantidad = Convert.ToInt32(row.Cells[4].Value),
-                                Producto = row.Cells[2].Value.ToString(),
-                                PrecioUnitario = precioFinal,
-                                Subtotal = subtotalFinal
-                            });
+                                // 2. Usamos sus propiedades numéricas directas (sin convertir a texto y volver a numero)
+                                listaParaTicket.Add(new TicketDetalle
+                                {
+                                    Cantidad = item.Cantidad,
+                                    Producto = item.NombreProducto,
+                                    PrecioUnitario = item.PrecioUnitario, // El decimal puro
+                                    Subtotal = item.Subtotal              // El decimal puro
+                                });
+                            }
                         }
 
-                        // -------------------------------------------------------
-                        // PASO 2: GUARDAR EN BASE DE DATOS Y LIMPIAR 💾
-                        // -------------------------------------------------------
-                        // Ahora sí, llamamos al servicio. Esto guardará y luego VACIARÁ el carrito.
-                        // Como ya guardamos la lista en 'listaParaTicket', no nos importa que se borre la grilla.
+                        // Guardar en BD
+                        int? idCliente = null;
+                        if (_usuarioActual == null) return;
+                        int idVentaGenerada = await _ventaService.ConfirmarVenta(idCliente, _usuarioActual.IdUsuario);
 
-                        int? idCliente = null; // Tu lógica de cliente
-                        int idVentaGenerada = await _ventaService.ConfirmarVenta(idCliente);
-
-                        // -------------------------------------------------------
-                        // PASO 3: IMPRIMIR EL TICKET 🖨️
-                        // -------------------------------------------------------
+                        // Imprimir ticket
                         try
                         {
                             var ticketService = new TicketService();
@@ -397,31 +372,42 @@ namespace Almacen.UI
                             {
                                 NroTicket = idVentaGenerada,
                                 Fecha = DateTime.Now,
-                                ClienteNombre = string.IsNullOrWhiteSpace(txtCliente.Text) ? "Consumidor Final" : txtCliente.Text,
+                                ClienteNombre = string.IsNullOrWhiteSpace(txtCliente.Text)
+                                    ? "Consumidor Final"
+                                    : txtCliente.Text,
                                 Total = formCobro.MontoTotal,
                                 PagoCon = formCobro.MontoPagoCon,
                                 Vuelto = formCobro.MontoPagoCon - formCobro.MontoTotal,
                                 FormaPago = "Efectivo"
                             };
 
-                            // ¡Aquí usamos la lista que preparamos en el Paso 1!
                             ticketService.GenerarTicket(datosTicket, listaParaTicket);
                         }
-                        catch (Exception ex)
+                        catch (Exception exTicket)
                         {
-                            MessageBox.Show("Venta guardada, pero falló la impresión: " + ex.Message);
+                            MessageBox.Show(
+                                $"✅ Venta registrada con éxito (Ticket #{idVentaGenerada})\n\n" +
+                                $"⚠️ Pero hubo un problema al imprimir:\n{exTicket.Message}",
+                                "Advertencia de Impresión",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
                         }
 
-                        MessageBox.Show("¡Venta registrada exitosamente!");
-                        ActualizarCarritoUI(); // Limpieza visual final
+                        MessageBox.Show($"¡Venta registrada exitosamente!\n\nTicket Nro: {idVentaGenerada}",
+                            "Venta Confirmada", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                        ActualizarCarritoUI();
+                        CargarHistorial(); // Actualizar historial automáticamente
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Error al guardar venta: " + ex.Message);
+                        MessageBox.Show($"Error al guardar venta:\n\n{ex.Message}",
+                            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             }
         }
+
 
         private void ActualizarCarritoUI()
         {
@@ -554,11 +540,17 @@ namespace Almacen.UI
         {
             try
             {
-                var ventas = await _ventaService.ObtenerHistorialVentas();
-                dgvVentas.DataSource = ventas;
-                EstilizarGridVentas();
+                // 1. Obtenemos la fecha del control visual (dtpFecha o dtpFechaHistorial)
+                // Asegúrate de usar el nombre correcto de tu control
+                DateTime fechaSeleccionada = dtpHistorial.Value;
 
-                // Estética
+                // 2. Se la enviamos al servicio
+                var ventas = await _ventaService.ObtenerHistorialVentas(fechaSeleccionada);
+
+                dgvVentas.DataSource = ventas;
+
+                // Estética y configuraciones...
+                EstilizarGridVentas(); // Si tienes este método, úsalo
                 dgvVentas.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
                 dgvVentas.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
                 dgvVentas.MultiSelect = false;
@@ -567,12 +559,6 @@ namespace Almacen.UI
             {
                 MessageBox.Show("Error al cargar historial: " + ex.Message);
             }
-        }
-
-        // 2. Evento del Botón Refrescar
-        private void btnRefrescarHistorial_Click(object sender, EventArgs e)
-        {
-            CargarHistorial();
         }
 
         // 3. EL EVENTO CLAVE: Cuando tocas una fila de arriba, se llena la de abajo
@@ -661,13 +647,8 @@ namespace Almacen.UI
         {
             // Pedimos una instancia nueva del formulario al contenedor de inyección
             // Esto asegura que el FormProductos reciba su ProductoService automáticamente
-            var formProductos = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<FormProductos>(Program.ServiceProvider);
-
-            // Lo abrimos como MODAL (bloquea la ventana de atrás hasta que cierres esta)
-            // Esto evita que vendas un producto mientras le cambias el precio al mismo tiempo.
-            formProductos.ShowDialog();
-
-            // Al volver, refrescamos el inventario por si cambiaste algo
+            var form = _serviceProvider.GetRequiredService<FormProductos>();
+            form.ShowDialog();
             CargarInventario();
         }
         private void FormPrincipal_KeyDown(object sender, KeyEventArgs e)
@@ -727,7 +708,7 @@ namespace Almacen.UI
             // LINQ AL RESCATE:
             // "De la lista completa, fíltrame los que el nombre contenga lo que escribí..."
             var listaFiltrada = _products
-                                .Where(p => p.Nombre.ToLower().Contains(textoBusqueda) ||
+                                .Where(p => p.Nombre.Contains(textoBusqueda, StringComparison.CurrentCultureIgnoreCase) ||
                                             p.CategoriaNombre.ToLower().Contains(textoBusqueda)) // Opcional: buscar por categoría tmb
                                 .ToList();
 
@@ -742,49 +723,145 @@ namespace Almacen.UI
 
         private async void btnAnular_Click(object sender, EventArgs e)
         {
-            // 1. Validar selección
-            if (dgvVentas.CurrentRow == null) return;
-
-            int idVenta = Convert.ToInt32(dgvVentas.CurrentRow.Cells["IdVenta"].Value);
-
-            // IMPORTANTE: Asegúrate de que tu DTO de historial traiga la columna Estado
-            string estadoActual = dgvVentas.CurrentRow.Cells["Estado"].Value?.ToString();
-
-            if (estadoActual == "Anulada")
+            // ✅ CRÍTICO: Validación segura de selección
+            if (dgvVentas.CurrentRow == null)
             {
-                MessageBox.Show("Esta venta ya figura como anulada.");
+                MessageBox.Show("Seleccione una venta primero.",
+                    "Ninguna Venta Seleccionada", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            // 2. Confirmar
+            // Validar que la celda tenga valor
+            if (dgvVentas.CurrentRow.Cells["IdVenta"]?.Value == null)
+            {
+                MessageBox.Show("No se pudo obtener el ID de la venta.",
+                    "Error de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Conversión segura
+            if (!int.TryParse(dgvVentas.CurrentRow.Cells["IdVenta"].Value.ToString(), out int idVenta))
+            {
+                MessageBox.Show("El ID de venta no es válido.",
+                    "Error de Datos", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            // Validar estado actual
+            string estadoActual = dgvVentas.CurrentRow.Cells["Estado"]?.Value?.ToString() ?? "";
+
+            if (estadoActual.Equals("Anulada", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show("Esta venta ya se encuentra anulada.",
+                    "Venta Ya Anulada", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Confirmar anulación
             var confirm = MessageBox.Show(
-                $"¿Anular venta #{idVenta}? El stock será devuelto.",
-                "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                $"¿Está seguro que desea anular la venta #{idVenta}?\n\n" +
+                "El stock de los productos será devuelto al inventario.",
+                "Confirmar Anulación",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
 
             if (confirm == DialogResult.Yes)
             {
                 try
                 {
-                    // TODO: Aquí podrías abrir un form para pedir el motivo exacto.
-                    // Por ahora enviamos uno genérico "Solicitud Cliente".
-                    string motivoAnulacion = "Error en carga / Solicitud Cliente";
+                    string motivoAnulacion = "Solicitud de cliente / Error en carga";
 
                     await _ventaService.AnularVenta(idVenta, motivoAnulacion);
 
-                    MessageBox.Show("✅ Venta anulada correctamente.");
-                    CargarHistorial(); // Refrescar para ver el cambio de estado
+                    MessageBox.Show("✅ Venta anulada correctamente.\n\nEl stock ha sido restaurado.",
+                        "Anulación Exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    await CargarHistorial(); // Refrescar
                 }
                 catch (System.Data.SqlClient.SqlException ex)
                 {
-                    // Aquí capturamos los THROW 50001 o 50002 de tu SP
-                    MessageBox.Show($"Error de Base de Datos: {ex.Message}", "Error SQL", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($"Error de Base de Datos:\n\n{ex.Message}",
+                        "Error SQL", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error: {ex.Message}");
+                    MessageBox.Show($"Error al anular:\n\n{ex.Message}",
+                        "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
         }
+        // ✅ CRÍTICO: Control de permisos por rol
+        public void AsignarUsuario(Usuario usuario)
+        {
+            _usuarioActual = usuario ?? throw new ArgumentNullException(nameof(usuario));
 
+            // Cambiar título de ventana
+            this.Text = $"Sistema de Ventas - Usuario: {_usuarioActual.NombreCompleto} ({_usuarioActual.Rol})";
+
+            // ✅ CRÍTICO: APLICAR PERMISOS POR ROL
+            switch (_usuarioActual.Rol.ToUpper())
+            {
+                case "CAJERO":
+                    // Cajero: Solo puede vender, no administrar
+                    btnAdminProductos.Visible = false;
+                    btnAnular.Visible = false;
+
+                    // Quitar pestaña de inventario completamente
+                    if (tabControl1.TabPages.Contains(tabInventario))
+                    {
+                        tabControl1.TabPages.Remove(tabInventario);
+                    }
+                    break;
+
+                case "VENDEDOR":
+                    // Vendedor: Puede vender y ver inventario, pero no anular ni administrar precios
+                    btnAnular.Visible = false;
+                    btnAdminProductos.Visible = false;
+                    break;
+
+                case "ADMIN":
+                case "ADMINISTRADOR":
+                    // Admin: Acceso total (sin cambios)
+                    btnAdminProductos.Visible = true;
+                    btnAnular.Visible = true;
+                    break;
+
+                default:
+                    // Rol desconocido: acceso mínimo por seguridad
+                    MessageBox.Show($"Rol '{_usuarioActual.Rol}' no reconocido. Acceso limitado aplicado.",
+                        "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                    btnAdminProductos.Visible = false;
+                    btnAnular.Visible = false;
+
+                    if (tabControl1.TabPages.Contains(tabInventario))
+                    {
+                        tabControl1.TabPages.Remove(tabInventario);
+                    }
+                    break;
+            }
+        }
+
+        private async void btnBuscarVentas_Click(object sender, EventArgs e)
+        {
+            await CargarHistorial();
+        }
+
+        private void btnCerrarCaja_Click(object sender, EventArgs e)
+        {
+            using (var formCierre = _serviceProvider.GetRequiredService<FormCierreCaja>())
+            {
+                formCierre.Inicializar(_usuarioActual.IdUsuario);
+                var resultado = formCierre.ShowDialog();
+
+                if (resultado == DialogResult.OK)
+                {
+                    // Al cerrar caja, sacamos al usuario del sistema
+                    Application.Exit();
+                    // O podrías reiniciar la app para volver al Login:
+                    // Application.Restart();
+                }
+            }
+        }
     }
 }

@@ -28,30 +28,32 @@ namespace Almacen.Data.Repositories
             return await connection.QueryAsync<DetalleVentaDto>(sql, new { IdVenta = idVenta });
         }
 
-        public async Task<IEnumerable<VentaResumenDto>> ObtenerVentasRecientesAsync()
+        public async Task<IEnumerable<VentaResumenDto>> ObtenerVentasRecientesAsync(DateTime fechaSeleccionada)
         {
             using var connection = CreateConnection();
-            var sql = @"
-        SELECT TOP 50
+            string sql = @"
+        SELECT 
             v.IdVenta,
-            v.FechaHora,
+            v.FechaHora AS Fecha, -- Ajusta si tu DTO espera 'Fecha' o 'FechaHora'
             v.Total,
-            ISNULL(c.Nombre, 'Consumidor Final') as ClienteNombre,
+            ISNULL(c.Nombre, 'Consumidor Final') as ClienteNombre, -- Tu lógica de cliente
             (SELECT COUNT(*) FROM dbo.DetalleVenta dv WHERE dv.IdVenta = v.IdVenta) as CantidadItems,
             v.Estado
         FROM dbo.Venta v  
         LEFT JOIN dbo.Cliente c ON v.IdCliente = c.IdCliente
+        WHERE CAST(v.FechaHora AS DATE) = CAST(@FechaParam AS DATE)
         ORDER BY v.FechaHora DESC"; // <--- Asegúrate de que esta línea esté presente
 
-            return await connection.QueryAsync<VentaResumenDto>(sql);
+            return await connection.QueryAsync<VentaResumenDto>(sql, new { FechaParam = fechaSeleccionada });
         }
 
-        public async Task<int> RegistrarVentaAsync(int? idCliente, string itemsJson)
+        public async Task<int> RegistrarVentaAsync(int? idCliente, string itemsJson, int? idSesion)
         {
             using var connection = CreateConnection();
             var parameters = new DynamicParameters();
             parameters.Add("@IdCliente", idCliente);
             parameters.Add("@ItemsJson", itemsJson);
+            parameters.Add("IdSesion", idSesion);
             // Llamamos a tu SP sp_RegistrarVenta
             var idVenta = await connection.ExecuteScalarAsync<int>(
                 "dbo.sp_RegistrarVentaJson",
@@ -68,6 +70,25 @@ namespace Almacen.Data.Repositories
           "dbo.sp_AnularVenta",
           new { IdVenta = idVenta, Motivo = motivo },
           commandType: CommandType.StoredProcedure);
+        }
+
+        public async Task ActualizarDatosFacturacionAsync(int idVenta, string cae, DateTime vtoCae, string nroComprobante)
+        {
+            using var connection = CreateConnection();
+            string sql = @"
+        UPDATE dbo.Venta 
+        SET CAE = @Cae, 
+            VencimientoCAE = @Vto, 
+            NumeroComprobante = @Nro
+        WHERE IdVenta = @Id";
+
+            await connection.ExecuteAsync(sql, new
+            {
+                Id = idVenta,
+                Cae = cae,
+                Vto = vtoCae,
+                Nro = nroComprobante
+            });
         }
     }
 }

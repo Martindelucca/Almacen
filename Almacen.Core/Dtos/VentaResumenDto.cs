@@ -10,9 +10,9 @@ namespace Almacen.Core.Dtos
     {
         public int IdVenta { get; set; }
         public DateTime FechaHora { get; set; }
-        public string ClienteNombre { get; set; }
+        public string ClienteNombre { get; set; } = string.Empty;
         public decimal Total { get; set; }
-        public int cantidadItems { get; set; }
+        public int CantidadItems { get; set; }
         public string Estado { get; set; }
     }
 }

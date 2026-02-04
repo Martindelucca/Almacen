@@ -93,15 +93,35 @@ namespace Almacen.UI
         // Evento para detectar ENTER en el TextBox
         private void txtPagaCon_KeyPress(object sender, KeyPressEventArgs e)
         {
-            // Permitir solo números, coma/punto y borrar
-            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar) && (e.KeyChar != '.') && (e.KeyChar != ','))
+            // ✅ CRÍTICO: Obtener el separador decimal correcto según la cultura
+            char decimalSeparator = Convert.ToChar(
+                System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator);
+
+            // Permitir números, borrar, y el separador decimal
+            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
             {
-                e.Handled = true;
+                if (e.KeyChar == decimalSeparator || e.KeyChar == '.' || e.KeyChar == ',')
+                {
+                    // Permitir solo UN separador decimal
+                    if (txtPagaCon.Text.Contains(decimalSeparator.ToString()) ||
+                        txtPagaCon.Text.Contains(".") ||
+                        txtPagaCon.Text.Contains(","))
+                    {
+                        e.Handled = true; // Bloquear
+                        return;
+                    }
+                }
+                else
+                {
+                    e.Handled = true; // Bloquear caracteres no numéricos
+                    return;
+                }
             }
 
-            // Si presiona ENTER y el botón está habilitado (pago suficiente)
+            // Si presiona ENTER y el pago es suficiente
             if (e.KeyChar == (char)13 && btnFinalizar.Enabled)
             {
+                e.Handled = true;
                 Confirmar();
             }
         }

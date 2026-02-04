@@ -3,15 +3,12 @@ using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
+using System.Reflection;
 
-// Asegúrate de usar tus namespaces correctos
-using Almacen.Core.Entities;
-using Almacen.Core.Dtos;
-
-namespace Almacen.UI.Services // O el namespace que uses
+namespace Almacen.UI.Services
 {
     public class TicketService
     {
@@ -21,7 +18,6 @@ namespace Almacen.UI.Services // O el namespace que uses
 
             var documento = Document.Create(container =>
             {
-                // Configuramos para rollo térmico (ancho 80mm, largo continuo)
                 container.Page(page =>
                 {
                     page.ContinuousSize(80, Unit.Millimetre);
@@ -37,7 +33,6 @@ namespace Almacen.UI.Services // O el namespace que uses
                         col.Item().Text("IVA Responsable Inscripto").FontSize(7).AlignCenter();
                         col.Item().Text("--------------------------------").AlignCenter();
 
-                        // Datos del Ticket y Cliente
                         col.Item().Text($"Ticket Nro: {datos.NroTicket}").Bold();
                         col.Item().Text($"Fecha: {datos.Fecha:dd/MM/yyyy HH:mm}");
 
@@ -52,15 +47,13 @@ namespace Almacen.UI.Services // O el namespace que uses
                     // --- TABLA DE PRODUCTOS ---
                     page.Content().Table(tabla =>
                     {
-                        // Definimos 3 columnas: Cantidad (pequeña) | Descripción (elástica) | Subtotal (fija)
                         tabla.ColumnsDefinition(columns =>
                         {
-                            columns.ConstantColumn(25); // Columna Cantidad
-                            columns.RelativeColumn();   // Columna Producto
-                            columns.ConstantColumn(45); // Columna Total
+                            columns.ConstantColumn(25); // Cantidad
+                            columns.RelativeColumn();   // Producto
+                            columns.ConstantColumn(45); // Total
                         });
 
-                        // Encabezados
                         tabla.Header(header =>
                         {
                             header.Cell().Text("Cant").Bold().FontSize(8);
@@ -68,20 +61,17 @@ namespace Almacen.UI.Services // O el namespace que uses
                             header.Cell().AlignRight().Text("Total").Bold().FontSize(8);
                         });
 
-                        // Filas
                         foreach (var item in detalles)
                         {
-                            // Cantidad
-                            tabla.Cell().PaddingBottom(2).Text($"{item.Cantidad} x").FontSize(8);
+                            // ✅ CRÍTICO: Formato correcto para cantidad decimal
+                            tabla.Cell().PaddingBottom(2).Text($"{item.Cantidad:N2} x").FontSize(8);
 
-                            // Producto y Precio Unitario (Truco: apilados en la misma celda)
                             tabla.Cell().PaddingBottom(2).Column(c =>
                             {
                                 c.Item().Text(item.Producto).FontSize(8);
                                 c.Item().Text($"($ {item.PrecioUnitario:N2})").FontSize(7).FontColor(Colors.Grey.Medium);
                             });
 
-                            // Subtotal
                             tabla.Cell().AlignRight().PaddingBottom(2).Text($"$ {item.Subtotal:N2}").FontSize(8);
                         }
                     });
@@ -91,19 +81,18 @@ namespace Almacen.UI.Services // O el namespace que uses
                     {
                         col.Item().LineHorizontal(1).LineColor(Colors.Black);
 
-                        // Totales grandes
                         col.Item().PaddingTop(2).AlignRight().Text($"TOTAL: $ {datos.Total:N2}").FontSize(16).Bold();
+                        col.Item().Text($"CAE: {datos.Cae}").FontSize(8);
+                        col.Item().Text($"Vto. CAE: {datos.VtoCae}").FontSize(8);
 
                         col.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
 
-                        // Información de Pago
                         col.Item().Row(row =>
                         {
                             row.RelativeItem().Text("Forma de Pago:").FontSize(8);
                             row.RelativeItem().AlignRight().Text(datos.FormaPago.ToUpper()).FontSize(8).Bold();
                         });
 
-                        // Solo mostramos pago y vuelto si es Efectivo
                         if (datos.FormaPago == "Efectivo")
                         {
                             col.Item().Row(row =>
@@ -123,30 +112,48 @@ namespace Almacen.UI.Services // O el namespace que uses
                 });
             });
 
-            string ruta = Path.Combine(Path.GetTempPath(), $"Ticket_{datos.NroTicket}.pdf");
-            documento.GeneratePdf(ruta);
-            Process.Start(new ProcessStartInfo(ruta) { UseShellExecute = true });
+            // ✅ CRÍTICO: Manejo de errores y nombre único con timestamp
+            try
+            {
+                string ruta = Path.Combine(Path.GetTempPath(), $"Ticket_{datos.NroTicket}_{DateTime.Now:yyyyMMddHHmmss}.pdf");
+                documento.GeneratePdf(ruta);
+
+                if (File.Exists(ruta))
+                {
+                    Process.Start(new ProcessStartInfo(ruta) { UseShellExecute = true });
+                }
+                else
+                {
+                    throw new FileNotFoundException("El archivo PDF no se generó correctamente.");
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Error al generar o abrir el ticket: {ex.Message}", ex);
+            }
         }
     }
-        // Clase para la cabecera del ticket
-        public class TicketData
-        {
-            public int NroTicket { get; set; }
-            public decimal Total { get; set; }
-            public decimal PagoCon { get; set; }
-            public decimal Vuelto { get; set; }
-            public string ClienteNombre { get; set; }
-            public DateTime Fecha { get; set; }
-            public string FormaPago { get; set; } = "Efectivo"; // Por defecto
-        }
 
-        // Clase para cada renglón de productos
-        public class TicketDetalle
-        {
-            public string Producto { get; set; }
-            public int Cantidad { get; set; }
-            public decimal PrecioUnitario { get; set; }
-            public decimal Subtotal { get; set; }
-        }
-    
+    // Clase para la cabecera del ticket
+    public class TicketData
+    {
+        public int NroTicket { get; set; }
+        public decimal Total { get; set; }
+        public decimal PagoCon { get; set; }
+        public decimal Vuelto { get; set; }
+        public string ClienteNombre { get; set; } = "Consumidor Final";
+        public DateTime Fecha { get; set; }
+        public string FormaPago { get; set; } = "Efectivo";
+        public string Cae { get; set; } // <--- NUEVO
+        public string VtoCae { get; set; } // <--- NUEVO
+    }
+
+    // ✅ CRÍTICO: Cantidad cambiada a DECIMAL
+    public class TicketDetalle
+    {
+        public string Producto { get; set; } = string.Empty;
+        public decimal Cantidad { get; set; } // ← CAMBIADO DE INT A DECIMAL
+        public decimal PrecioUnitario { get; set; }
+        public decimal Subtotal { get; set; }
+    }
 }

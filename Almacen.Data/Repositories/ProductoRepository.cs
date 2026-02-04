@@ -15,28 +15,38 @@ namespace Almacen.Data.Repositories
         {
             using var connection = CreateConnection();
             // Usamos tu vista v_StockActual o la tabla directa
-            var sql = @"
+            string sql = @"
         SELECT 
             p.IdProducto, 
+            p.IdCategoria, 
             p.Nombre, 
-            p.PrecioActual, 
-            c.Nombre as CategoriaNombre,
-            ISNULL(sp.StockActual, 0) as StockActual
-        FROM dbo.Producto p 
-        INNER JOIN dbo.Categoria c ON p.IdCategoria = c.IdCategoria
-        LEFT JOIN dbo.StockProducto sp ON p.IdProducto = sp.IdProducto
-        WHERE p.Activo = 1"; ;
+            p.PrecioActual AS PrecioActual, 
+            p.Activo,
+            ISNULL(s.StockActual, 0) AS StockActual -- <--- ¡ESTA ES LA CLAVE!
+        FROM Producto p
+        LEFT JOIN StockProducto s ON p.IdProducto = s.IdProducto
+        WHERE p.Activo = 1";
 
             return await connection.QueryAsync<Producto>(sql);
         }
 
-        public async Task<Producto?> GetByIdAsync(int id)
+        public async Task<Producto> ObtenerPorIdAsync(int id)
         {
-            using var connection = CreateConnection();
-            var sql = "SELECT * FROM dbo.Producto WHERE IdProducto = @Id";
-            return await connection.QueryFirstOrDefaultAsync<Producto>(sql, new { Id = id });
-        }
+            using var db = CreateConnection();
+            string sql = @"
+        SELECT 
+            p.IdProducto, 
+            p.IdCategoria, 
+            p.Nombre, 
+            p.PrecioActual, 
+            p.Activo,
+            ISNULL(s.StockActual, 0) AS StockActual  -- <--- ¡TAMBIÉN AQUÍ!
+        FROM Producto p
+        LEFT JOIN StockProducto s ON p.IdProducto = s.IdProducto
+        WHERE p.IdProducto = @Id"; // Sin Activo=1 para permitir devoluciones de cosas viejas
 
+            return await db.QueryFirstOrDefaultAsync<Producto>(sql, new { Id = id });
+        }
         public async Task<int> EntradaStockAsync(int idProducto, decimal cantidad, decimal? stockMinimo, string motivo)
         {
             using var connection = CreateConnection();

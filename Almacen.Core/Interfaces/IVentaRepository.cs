@@ -10,10 +10,11 @@ namespace Almacen.Core.Interfaces
     public interface IVentaRepository
     {
         // Recibe el JSON ya formateado. El repo no debe saber de lógica de negocio, solo de transporte.
-        Task<int> RegistrarVentaAsync(int? idCliente, string itemsJson);
-        Task<IEnumerable<VentaResumenDto>> ObtenerVentasRecientesAsync();
+        Task<int> RegistrarVentaAsync(int? idCliente, string itemsJson, int? idSesion);
+        Task<IEnumerable<VentaResumenDto>> ObtenerVentasRecientesAsync(DateTime fechaSeleccionada);
         Task<IEnumerable<DetalleVentaDto>> ObtenerDetalleDeVentaAsync(int idVenta);
 
         Task AnularVentaAsync(int idVenta, string motivo);
+        Task ActualizarDatosFacturacionAsync(int idVenta, string cae, System.DateTime vtoCae, string nroComprobante);
     }
 }

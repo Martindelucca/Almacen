@@ -1,122 +1,142 @@
-using Almacen.Business.Services;
+Ôªøusing Almacen.Business.Services;
 using Almacen.Core.Interfaces;
 using Almacen.Data.Repositories;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting; // Requiere instalar NuGet: Microsoft.Extensions.Hosting
 using System;
 using System.IO;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace Almacen.UI
 {
     static class Program
     {
-        // Propiedad p˙blica para acceder a la configuraciÛn si hiciera falta desde otros lados
         public static IConfiguration Configuration { get; private set; }
-
-        // El contenedor de servicios (nuestra "caja de herramientas" global)
         public static IServiceProvider ServiceProvider { get; private set; }
 
-        /// <summary>
-        ///  Punto de entrada principal para la aplicaciÛn.
-        /// </summary>
         [STAThread]
         static void Main()
         {
-            //// --- BORRAR ESTO DESPU…S DE OBTENER EL HASH ---
-            //// Esto generar· un hash v·lido para la contraseÒa "1234"
-            //string miHashSecreto = BCrypt.Net.BCrypt.HashPassword("1234");
+            // ‚úÖ CR√çTICO: MANEJADORES GLOBALES DE EXCEPCIONES
+            Application.ThreadException += Application_ThreadException;
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
 
-            //// Lo copiamos al portapapeles para que puedas hacer CTRL+V en SQL
-            //System.Windows.Forms.Clipboard.SetText(miHashSecreto);
-
-            //System.Windows.Forms.MessageBox.Show("Hash generado y copiado al portapapeles:\n\n" + miHashSecreto);
-            //// ---------------------------------------------
             Application.SetHighDpiMode(HighDpiMode.SystemAware);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // 1. Configurar AppSettings
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory())
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-
-            Configuration = builder.Build();
-
-            // 2. Configurar InyecciÛn de Dependencias
-            var services = new ServiceCollection();
-            ConfigureServices(services);
-
-            // 3. Construir el proveedor de servicios
-            ServiceProvider = services.BuildServiceProvider();
-
-            // -------------------------------------------------------------
-            // 4. NUEVA L”GICA DE ARRANQUE (LOGIN -> PRINCIPAL)
-            // -------------------------------------------------------------
             try
             {
-                // A. Pedimos el Form de Login a la f·brica
+                // 1. Configurar AppSettings
+                var builder = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+
+                Configuration = builder.Build();
+
+                // 2. Configurar Inyecci√≥n de Dependencias
+                var services = new ServiceCollection();
+                ConfigureServices(services);
+
+                // 3. Construir el proveedor de servicios
+                ServiceProvider = services.BuildServiceProvider();
+
+                // 4. Iniciar con Login
                 var formLogin = ServiceProvider.GetRequiredService<FormLogin>();
-
-                // B. Lo mostramos como una ventana de di·logo (Modal)
-                // El cÛdigo se detiene aquÌ hasta que el usuario cierre el Login o entre.
-                DialogResult resultado = formLogin.ShowDialog();
-
-                // C. Si el resultado fue OK (El usuario entrÛ correctamente)
-                if (resultado == DialogResult.OK)
+                DialogResult result = formLogin.ShowDialog();
+                if (result == DialogResult.OK)
                 {
-                    // 1. Pedimos el FormPrincipal
                     var mainForm = ServiceProvider.GetRequiredService<FormPrincipal>();
-
-                    // 2. IMPORTANTE: Le pasamos el usuario que se logueÛ
-                    // (Aseg˙rate de haber creado el mÈtodo AsignarUsuario en FormPrincipal como vimos en el paso anterior)
                     mainForm.AsignarUsuario(formLogin.UsuarioLogueado);
-
-                    // 3. Arrancamos la aplicaciÛn principal
                     Application.Run(mainForm);
-                }
-                else
-                {
-                    // Si el usuario cerrÛ la ventana o cancelÛ, la app se cierra aquÌ.
-                    // No hacemos nada m·s.
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error grave al iniciar: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                LogError(ex);
+                MessageBox.Show(
+                    $"Error cr√≠tico al iniciar la aplicaci√≥n:\n\n{ex.Message}\n\n" +
+                    "Revise el archivo errors.log para m√°s detalles.",
+                    "Error Fatal",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Stop);
             }
         }
 
-        /// <summary>
-        /// AquÌ "registramos" quÈ clases cumplen quÈ funciones.
-        /// </summary>
         private static void ConfigureServices(IServiceCollection services)
         {
-            // A. Leemos la cadena de conexiÛn de la configuraciÛn
             string connectionString = Configuration.GetConnectionString("DefaultConnection");
 
-            // B. Registramos los Repositorios (Capa de Datos)
-            // "Cuando alguien pida IProductoRepository, dale un ProductoRepository conectado a SQL"
+            // Repositorios
             services.AddScoped<IProductoRepository>(provider => new ProductoRepository(connectionString));
             services.AddScoped<IVentaRepository>(provider => new VentaRepository(connectionString));
             services.AddScoped<IUsuarioRepository>(provider => new UsuarioRepository(connectionString));
+            services.AddScoped<ICajaRepository>(provider => new CajaRepository(connectionString));
 
-            // C. Registramos los Servicios de Negocio (Capa LÛgica)
-            // VentaService se crear· autom·ticamente recibiendo los repositorios que necesita.
+            // Servicios
             services.AddScoped<VentaService>();
             services.AddScoped<ProductoService>();
             services.AddScoped<LoginService>();
+            services.AddScoped<CajaService>();
+            // Si vas a vender ma√±ana, cambias MockFacturacionService por AfipFacturacionService
+            services.AddScoped<IFacturacionService, MockFacturacionService>();
 
-
-            // D. Registramos los Formularios (Capa Visual)
-            // Es vital registrar el Form para poder inyectarle cosas en su constructor.
+            // Formularios
             services.AddTransient<FormPrincipal>();
             services.AddTransient<FormProductos>();
             services.AddTransient<FormLogin>();
+            services.AddTransient<FormAperturaCaja>();
+            services.AddTransient<FormCierreCaja>();
         }
 
-        // ... (Toda la configuraciÛn de servicios que ya arreglamos antes) ...
+        // ‚úÖ CR√çTICO: Manejadores de errores no capturados
+        private static void Application_ThreadException(object sender, ThreadExceptionEventArgs e)
+        {
+            LogError(e.Exception);
+            MessageBox.Show(
+                $"Ha ocurrido un error inesperado:\n\n{e.Exception.Message}\n\n" +
+                "La aplicaci√≥n continuar√° ejecut√°ndose, pero revise el log de errores.",
+                "Error de Aplicaci√≥n",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
 
+        private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            var ex = (Exception)e.ExceptionObject;
+            LogError(ex);
+
+            MessageBox.Show(
+                $"Error cr√≠tico no recuperable:\n\n{ex.Message}\n\n" +
+                "La aplicaci√≥n se cerrar√°.",
+                "Error Fatal",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Stop);
+
+            Application.Exit();
+        }
+
+        // ‚úÖ CR√çTICO: Sistema de logging
+        private static void LogError(Exception ex)
+        {
+            try
+            {
+                string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "errors.log");
+                string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().Name}: {ex.Message}\n" +
+                                  $"StackTrace: {ex.StackTrace}\n" +
+                                  $"{"".PadLeft(80, '-')}\n";
+
+                File.AppendAllText(logPath, logEntry);
+            }
+            catch
+            {
+                // Si falla el logging, no hacer nada (evitar error al loguear error)
+            }
+        }
     }
 }
+
+
+              
